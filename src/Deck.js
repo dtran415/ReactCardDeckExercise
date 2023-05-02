@@ -1,4 +1,4 @@
-import React, {useState, useEffect } from "react";
+import React, {useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Card from "./Card";
 
@@ -9,6 +9,8 @@ function Deck() {
     // array of drawn cards
     const [cards, setCards] = useState([]);
     const [hasCards, setHasCards] = useState(true);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const timerRef = useRef();
 
     async function getDeck() {
         try {
@@ -47,23 +49,46 @@ function Deck() {
                     "remaining": int
                 }
             } */
-            const resp = await axios.get(`${API_BASE_URL}/${deck.deck_id}/draw`);
-            const card = resp.data.cards[0];
-            if (card) {
-                setCards(cards => [...cards, resp.data.cards[0]])
+            if (hasCards) {
+                const resp = await axios.get(`${API_BASE_URL}/${deck.deck_id}/draw`);
+                const card = resp.data.cards[0];
+                if (card) {
+                    setCards(cards => [...cards, resp.data.cards[0]])
+                }
+                if (resp.data.remaining===0) {
+                    clearTimer();
+                    setHasCards(false);
+                    alert("No more cards");
+                }
             }
-            if (resp.data.remaining===0) {
-                alert("No more cards");
-                setHasCards(false);
-            }
+            
         } catch(e) {
             alert(e);
         }
     }
 
+    async function toggleDraw() {
+        setIsDrawing(isDrawing=>!isDrawing);
+    }
+
+    function clearTimer() {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+    }
+
     useEffect(()=>{
         getDeck();
     },[]);
+
+    useEffect(()=> {
+        if (isDrawing) {
+            timerRef.current = setInterval(async() => {
+                await getCard();
+            }, 1000);
+        }
+
+        return ()=>{clearTimer()};
+    },[isDrawing]);
 
     const cardComponents = (<div>
         {cards.map(card=><Card key={card.code} image={card.image}/>)}
@@ -72,7 +97,8 @@ function Deck() {
     return (
         <div>
             {hasCards?
-                <button onClick={()=>getCard()}>Draw Card</button>
+                (<><button onClick={()=>getCard()}>Draw Card</button>
+                <button onClick={()=>toggleDraw()}>{isDrawing?"Stop Drawing":"Start Drawing"}</button></>)
                 :""}
             <div>{cardComponents}</div>
             
